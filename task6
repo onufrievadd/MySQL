@@ -1,0 +1,191 @@
+-- Таблица лайков
+DROP TABLE IF EXISTS likes;
+CREATE TABLE likes (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  target_id INT UNSIGNED NOT NULL,
+  target_type ENUM('messages', 'users', 'posts', 'media') NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Временная таблица типов лайков
+DROP TABLE IF EXISTS target_types;
+CREATE TEMPORARY TABLE target_types (
+  name VARCHAR(100) NOT NULL UNIQUE
+);
+
+INSERT INTO target_types (name) VALUES 
+  ('messages'),
+  ('users'),
+  ('media'),
+  ('posts');
+
+ -- Заполняем лайки
+INSERT INTO likes 
+  SELECT 
+    id, 
+    FLOOR(1 + (RAND() * 100)), 
+    FLOOR(1 + (RAND() * 100)),
+    (SELECT name FROM target_types ORDER BY RAND() LIMIT 1),
+    CURRENT_TIMESTAMP 
+  FROM messages;
+
+-- Проверим
+SELECT * FROM likes LIMIT 10;
+
+-- Создадим таблицу постов
+DROP TABLE IF EXISTS posts;
+CREATE TABLE posts (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  community_id INT UNSIGNED,
+  head VARCHAR(255),
+  body TEXT NOT NULL,
+  media_id INT UNSIGNED,
+  is_public BOOLEAN DEFAULT TRUE,
+  is_archived BOOLEAN DEFAULT FALSE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+
+SELECT * FROM posts LIMIT 10;
+
+
+-- Добавляем внешние ключи в БД vk
+-- Для таблицы профилей
+
+-- Смотрим структуру таблицы
+DESC profiles;
+
+
+-- Добавляем внешние ключи
+ALTER TABLE profiles
+  ADD CONSTRAINT profiles_user_id_fk 
+    FOREIGN KEY (user_id) REFERENCES users(id)
+       ON DELETE CASCADE ;
+      
+ALTER TABLE profiles
+  ADD CONSTRAINT profiles_city_id_fk 
+    FOREIGN KEY (city_id) REFERENCES cities(id)
+       ON DELETE set null ;
+     
+ALTER TABLE communities_users 
+  ADD CONSTRAINT communities_users_user_id_fk 
+    FOREIGN KEY (user_id) REFERENCES users(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE communities_users 
+  ADD CONSTRAINT communities_users_community_id_fk 
+    FOREIGN KEY (community_id) REFERENCES communities(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE friendship 
+  ADD CONSTRAINT friendship_user_id_fk 
+    FOREIGN KEY (user_id) REFERENCES users(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE friendship 
+  ADD CONSTRAINT friendship_friend_id_fk 
+    FOREIGN KEY (friend_id) REFERENCES users(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE friendship 
+  ADD CONSTRAINT friendship_friendship_status_id_fk 
+    FOREIGN KEY (friendship_status_id) REFERENCES friendship_statuses(id)
+       ON DELETE cascade ;
+
+ALTER TABLE cities 
+  ADD CONSTRAINT cities_country_id_fk 
+    FOREIGN KEY (country_id) REFERENCES countries(id)
+       ON DELETE set null ;
+
+ALTER TABLE messages 
+  ADD CONSTRAINT messages_from_user_id_fk 
+    FOREIGN KEY (from_user_id) REFERENCES users(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE messages 
+  ADD CONSTRAINT messages_media_id_fk 
+    FOREIGN KEY (media_id) REFERENCES media(id)
+       ON DELETE set null ;
+      
+ALTER TABLE messages 
+  ADD CONSTRAINT messages_to_user_id_fk 
+    FOREIGN KEY (to_user_id) REFERENCES users(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE media 
+  ADD CONSTRAINT media_media_type_id_fk 
+    FOREIGN KEY (media_type_id) REFERENCES media_types(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE media 
+  ADD CONSTRAINT media_user_id_fk 
+    FOREIGN KEY (user_id) REFERENCES users(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE posts 
+  ADD CONSTRAINT posts_user_id_fk 
+    FOREIGN KEY (user_id) REFERENCES users(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE posts 
+  ADD CONSTRAINT posts_community_id_fk 
+    FOREIGN KEY (community_id) REFERENCES communities(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE posts 
+  ADD CONSTRAINT posts_media_id_fk 
+    FOREIGN KEY (media_id) REFERENCES media(id)
+       ON DELETE cascade ;
+      
+ALTER TABLE likes 
+  ADD CONSTRAINT likes_user_id_fk 
+    FOREIGN KEY (user_id) REFERENCES users(id)
+       ON DELETE cascade ;
+
+ 
+-- Определить кто больше поставил лайков (всего) - мужчины или женщины?
+select count(*) as likes,
+	(select gender from profiles where profiles.user_id = likes.user_id) as gender 
+from 
+	likes
+group by 
+	gender ;
+-- Вывести для каждого пользователя количество созданных сообщений, постов, загруженных медиафайлов и поставленных лайков.
+
+select count(*) as messages,  
+  (SELECT user_id FROM profiles where profiles.user_id = messages.from_user_id) as user_id 
+  FROM messages 
+   group by 
+  user_id;
+
+
+select count(*) as posts,  
+  (SELECT user_id FROM profiles where profiles.user_id = posts.user_id) as user_id 
+  FROM posts
+   group by 
+  user_id;
+ 
+ select count(*) as media,  
+  (SELECT user_id FROM profiles where profiles.user_id = media.user_id) as user_id 
+  FROM media 
+  group by 
+  user_id ;
+ 
+ select count(*) as likes,  
+  (SELECT user_id FROM profiles where profiles.user_id = likes.user_id) as user_id 
+  FROM likes
+  group by 
+  user_id ;
+ 
+ -- Если в одну команду
+ 
+ SELECT CONCAT(u.last_name, ' ', u.first_name) user_name,
+(SELECT COUNT(*) FROM messages m WHERE m.from_user_id = u.id) sum_messages,
+(SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id) sum_posts,
+(SELECT COUNT(*) FROM media m WHERE m.user_id = u.id) sum_media,
+(SELECT COUNT(*) FROM likes l WHERE l.user_id = u.id) sum_likes
+FROM users u;
+ 
